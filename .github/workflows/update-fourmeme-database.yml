@@ -1,0 +1,53 @@
+name: Update FourMeme database
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "30 0 * * *"
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: fourmeme-database
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+
+      - name: Increment database
+        run: node tools/update-fourmeme-tickers-rpc.mjs
+
+      - name: Build remote release
+        run: node tools/build-remote-database-release.mjs
+
+      - name: Commit database progress
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/fourmeme-tickers.json
+          git diff --cached --quiet || git commit -m "chore: update FourMeme ticker database"
+          git push
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: outputs/remote-database
+
+      - name: Deploy database
+        id: deployment
+        uses: actions/deploy-pages@v4
